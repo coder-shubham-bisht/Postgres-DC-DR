@@ -111,7 +111,7 @@ rm -rf rm -rf /var/lib/postgresql/data/*
 ```
 adding replication
 ```
-pg_basebackup -h 192.168.1.85 -U replicator -p 5433 -D /var/lib/postgresql/data -P -Xs -R
+pg_basebackup -h 192.168.100.44 -U replicator -p 5433 -D /var/lib/postgresql/data -P -Xs -R
 
 ```
 ouput Password pops up ,enter the replicator user password
