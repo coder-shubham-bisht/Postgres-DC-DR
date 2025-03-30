@@ -143,7 +143,6 @@ rm -rf /var/lib/postgresql/data/*
 export PGPASSWORD="your_password"
 pg_basebackup -h 192.168.100.44 -U replicator -p 5433 -D /var/lib/postgresql/data -P -Xs -R
 ```
-Enter the `replicator` user password when prompted.
 
 #### Output:
 ```
@@ -155,9 +154,7 @@ Enter the `replicator` user password when prompted.
 ### Prerequisite
 Access the PostgreSQL shell in `pg_dc` container:
 
-```bash
-psql -U postgres -d postgres
-```
+
 
 ### 4.1 Create a Table in `pg_dc`
 
@@ -216,7 +213,7 @@ SHOW transaction_read_only;
 (1 row)
 ```
 
-## 5. Convert `pg_dr` to Primary Server
+## 5. Convert `pg_dr` into Primary Server
 
 ### Prerequisite
 Access the PostgreSQL shell in `pg_dr` container:
@@ -247,13 +244,15 @@ SELECT pg_is_in_recovery();
 (1 row)
 ```
 
-### 5.2 Update `pg_hba.conf` and Restart `pg_dr`
+### 5.2 Update `pg_hba.conf` and Restart `pg_dr` container
 
 ```bash
 echo 'host replication replicator 192.168.100.44/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
+exit
+```
+```
 podman restart pg_dr
 ```
-
 ## 6. Convert `pg_dc` to Standby Server
 
 ### Prerequisite
@@ -261,13 +260,19 @@ Access the `pg_dc` container shell:
 
 ```bash
 rm -rf /var/lib/postgresql/data/*
-export PGPASSWORD="replicator"
+export PGPASSWORD="rep@1234"
 pg_basebackup -h 192.168.100.45 -U replicator -p 5432 -D /var/lib/postgresql/data -P -Xs -R
+exit
+```
+```
+podman restart pg_dc
 ```
 
 ## 7. Final Testing
 
 ### 7.1 Check Read-Only Mode in `pg_dc`
+### Prerequisite
+Access the PostgreSQL shell in `pg_dr` container:
 
 ```sql
 SHOW transaction_read_only;
@@ -290,5 +295,50 @@ SELECT * FROM students;
 ```
 
 ---
-This setup ensures PostgreSQL streaming replication with failover and switchover testing. 🚀
 
+### 8. Convert the pg_dc primary server
+### Prerequisite
+Access the PostgreSQL shell in `pg_dc` container:
+
+```sql
+SELECT pg_promote();
+```
+
+#### Output:
+```
+ pg_promote
+------------
+ t
+(1 row)
+```
+
+### 8.1 Check if Recovery Mode is Off
+
+```sql
+SELECT pg_is_in_recovery();
+```
+
+#### Output:
+```
+ pg_is_in_recovery
+-------------------
+ f
+(1 row)
+```
+
+
+
+## 9. Convert `pg_dr` to Standby Server
+
+### Prerequisite
+Access the `pg_dc` container shell:
+
+```bash
+rm -rf /var/lib/postgresql/data/*
+export PGPASSWORD="rep@123"
+pg_basebackup -h 192.168.100.44 -U replicator -p 5432 -D /var/lib/postgresql/data -P -Xs -R
+exit
+```
+```
+podman restart pg_dc
+```
