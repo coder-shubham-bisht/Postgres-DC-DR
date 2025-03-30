@@ -50,10 +50,23 @@ podman run -d --name pg_dr \
 podman exec -it pg_dc bash
 ```
 
+#### Output:
+```bash
+root@5a6c4a9c4433:/#
+```
+
 ### 2.2 Access PostgreSQL Shell
 
 ```bash
 psql -U postgres -d postgres
+```
+
+#### Output:
+```bash
+psql (16.8 (Debian 16.8-1.pgdg120+1))
+Type "help" for help.
+
+postgres=#
 ```
 
 ### 2.3 Create Replication User
@@ -62,46 +75,89 @@ psql -U postgres -d postgres
 CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD 'rep@123';
 ```
 
+#### Output:
+```bash
+CREATE ROLE
+```
+
 ### 2.4 Verify Role Creation
 
 ```sql
 \du
 ```
 
-### 2.5 Configure Authentication in `pg_hba.conf`
+#### Output:
+```
+                              List of roles
+ Role name  |                         Attributes                         
+------------+------------------------------------------------------------
+ postgres   | Superuser, Create role, Create DB, Replication, Bypass RLS
+ replicator | Replication
+```
+
+### 2.5 Exit the Shell
+
+```bash
+exit
+```
+
+### 2.6 Configure Authentication in `pg_hba.conf`
 
 ```bash
 echo 'host replication replicator 192.168.100.45/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
 ```
 
-### 2.6 Restart the Container
+### 2.7 Exit the Postgres Container
+```bash
+exit
+```
 
+### 2.8 Restart the Container
 ```bash
 podman restart pg_dc
 ```
 
 ## 3. Configure PostgreSQL 16.3 for Streaming Replication
 
-### 3.1 Access the PostgreSQL 16.3 Container
+### Prerequisite
+Access the `pg_dr` container:
 
 ```bash
 podman exec -it pg_dr bash
 ```
 
-### 3.2 Remove Data Directory Contents
+#### Output:
+```bash
+root@5a6c4a9c4433:/#
+```
+
+### 3.1 Remove Data Directory Contents
 
 ```bash
 rm -rf /var/lib/postgresql/data/*
 ```
 
-### 3.3 Set Up Replication from Primary Server
+### 3.2 Set Up Replication from Primary Server
 
 ```bash
-export PGPASSWORD="rep@123"
+export PGPASSWORD="your_password"
 pg_basebackup -h 192.168.100.44 -U replicator -p 5433 -D /var/lib/postgresql/data -P -Xs -R
+```
+Enter the `replicator` user password when prompted.
+
+#### Output:
+```
+23160/23160 kB (100%), 1/1 tablespace
 ```
 
 ## 4. Testing the Replication
+
+### Prerequisite
+Access the PostgreSQL shell in `pg_dc` container:
+
+```bash
+psql -U postgres -d postgres
+```
 
 ### 4.1 Create a Table in `pg_dc`
 
@@ -113,10 +169,26 @@ CREATE TABLE students (
 );
 ```
 
+#### Output:
+```
+CREATE TABLE
+```
+
 ### 4.2 Check Table Replication in `pg_dr`
+
+**Prerequisite**: Access the PostgreSQL shell in `pg_dr` container.
 
 ```sql
 \dt
+```
+
+#### Output:
+```
+         List of relations
+ Schema |   Name   | Type  |  Owner   
+--------+----------+-------+----------
+ public | students | table | postgres
+(1 row)
 ```
 
 ### 4.3 Insert Data in `pg_dc`
@@ -125,44 +197,57 @@ CREATE TABLE students (
 INSERT INTO students (name, age) VALUES ('ayush', 25);
 ```
 
-### 4.4 Check Data Replication in `pg_dr`
+### 4.4 Verify Data Replication in `pg_dr`
 
 ```sql
 SELECT * FROM students;
 ```
 
-### 4.5 Verify `pg_dr` is Read-Only
+### 4.5 Check if `pg_dr` is Read-Only
 
 ```sql
 SHOW transaction_read_only;
 ```
-
-Attempt an insert:
-
-```sql
-INSERT INTO students (name, age) VALUES ('Test', 20);
+#### Output:
+```
+ transaction_read_only
+-----------------------
+ on
+(1 row)
 ```
 
-#### Expected Output:
-```bash
-ERROR:  cannot execute INSERT in a read-only transaction
-```
+## 5. Convert `pg_dr` to Primary Server
 
-## 5. Promote `pg_dr` as Primary Server
-
-### 5.1 Promote Standby to Primary
+### Prerequisite
+Access the PostgreSQL shell in `pg_dr` container:
 
 ```sql
 SELECT pg_promote();
 ```
 
-Verify promotion:
+#### Output:
+```
+ pg_promote
+------------
+ t
+(1 row)
+```
+
+### 5.1 Check if Recovery Mode is Off
 
 ```sql
 SELECT pg_is_in_recovery();
 ```
 
-### 5.2 Configure Authentication in `pg_hba.conf`
+#### Output:
+```
+ pg_is_in_recovery
+-------------------
+ f
+(1 row)
+```
+
+### 5.2 Update `pg_hba.conf` and Restart `pg_dr`
 
 ```bash
 echo 'host replication replicator 192.168.100.44/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
@@ -171,40 +256,39 @@ podman restart pg_dr
 
 ## 6. Convert `pg_dc` to Standby Server
 
-### 6.1 Reinitialize `pg_dc`
+### Prerequisite
+Access the `pg_dc` container shell:
 
 ```bash
-podman exec -it pg_dc bash
 rm -rf /var/lib/postgresql/data/*
-export PGPASSWORD="rep@123"
+export PGPASSWORD="replicator"
 pg_basebackup -h 192.168.100.45 -U replicator -p 5432 -D /var/lib/postgresql/data -P -Xs -R
 ```
 
 ## 7. Final Testing
 
-### 7.1 Check `pg_dc` is Read-Only
+### 7.1 Check Read-Only Mode in `pg_dc`
 
 ```sql
 SHOW transaction_read_only;
 ```
 
-Attempt an insert:
-
-```sql
-INSERT INTO students (name, age) VALUES ('risabh', 40);
-```
-
-#### Expected Output:
-```bash
-ERROR:  cannot execute INSERT in a read-only transaction
-```
-
-### 7.2 Check `pg_dr` is Writable
+### 7.2 Verify Inserts in `pg_dr`
 
 ```sql
 INSERT INTO students (name, age) VALUES ('risabh', 40);
 SELECT * FROM students;
 ```
 
-This setup ensures high availability with PostgreSQL streaming replication. 🚀
+#### Output:
+```
+ id |  name  | age
+----+--------+-----
+  1 | ayush  |  26
+ 34 | risabh |  40
+(2 rows)
+```
+
+---
+This setup ensures PostgreSQL streaming replication with failover and switchover testing. 🚀
 
