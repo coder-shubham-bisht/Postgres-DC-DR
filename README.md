@@ -105,6 +105,7 @@ exit
 
 ```bash
 echo 'host replication replicator 192.168.100.45/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
+echo 'host replication replicator 192.168.100.44/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
 ```
 
 ### 2.7 Exit the Postgres Container
@@ -140,14 +141,21 @@ rm -rf /var/lib/postgresql/data/*
 ### 3.2 Set Up Replication from Primary Server
 
 ```bash
-export PGPASSWORD="your_password"
-pg_basebackup -h 192.168.100.44 -U replicator -p 5433 -D /var/lib/postgresql/data -P -Xs -R
+export PGPASSWORD="rep@123"
+pg_basebackup -h 192.168.100.44 -U replicator -p 5432 -D /var/lib/postgresql/data -P -Xs -R
+exit
 ```
 
 #### Output:
 ```
 23160/23160 kB (100%), 1/1 tablespace
 ```
+### 3.2 Restart the pg_dr container
+
+```
+podman restart pg_dr
+```
+
 
 ## 4. Testing the Replication
 
@@ -244,15 +252,7 @@ SELECT pg_is_in_recovery();
 (1 row)
 ```
 
-### 5.2 Update `pg_hba.conf` and Restart `pg_dr` container
 
-```bash
-echo 'host replication replicator 192.168.100.44/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
-exit
-```
-```
-podman restart pg_dr
-```
 ## 6. Convert `pg_dc` to Standby Server
 
 ### Prerequisite
@@ -260,10 +260,11 @@ Access the `pg_dc` container shell:
 
 ```bash
 rm -rf /var/lib/postgresql/data/*
-export PGPASSWORD="rep@1234"
+export PGPASSWORD="rep@123"
 pg_basebackup -h 192.168.100.45 -U replicator -p 5432 -D /var/lib/postgresql/data -P -Xs -R
 exit
 ```
+### Restart the pg_dc container
 ```
 podman restart pg_dc
 ```
@@ -276,6 +277,14 @@ Access the PostgreSQL shell in `pg_dr` container:
 
 ```sql
 SHOW transaction_read_only;
+```
+
+### Output
+```
+ transaction_read_only 
+-----------------------
+ on
+(1 row)
 ```
 
 ### 7.2 Verify Inserts in `pg_dr`
@@ -294,9 +303,25 @@ SELECT * FROM students;
 (2 rows)
 ```
 
+### 7.3 Verify replication in pg_dc
+
+
+```
+SELECT * FROM students;
+```
+### Ouput
+```
+ id |  name  | age 
+----+--------+-----
+  1 | ayush  |  25
+ 34 | risabh |  40
+(2 rows)
+```
+
+
 ---
 
-### 8. Convert the pg_dc primary server
+### 8. Convert the pg_dc into primary server
 ### Prerequisite
 Access the PostgreSQL shell in `pg_dc` container:
 
@@ -312,7 +337,7 @@ SELECT pg_promote();
 (1 row)
 ```
 
-### 8.1 Check if Recovery Mode is Off
+### 8.1 Check if Recovery Mode is Off in pg_dc
 
 ```sql
 SELECT pg_is_in_recovery();
@@ -339,6 +364,8 @@ export PGPASSWORD="rep@123"
 pg_basebackup -h 192.168.100.44 -U replicator -p 5432 -D /var/lib/postgresql/data -P -Xs -R
 exit
 ```
+
+### Restart the pg_dc container
 ```
 podman restart pg_dc
 ```
