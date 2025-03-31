@@ -253,67 +253,17 @@ podman restart pg_dr
 
 ## 10. Monitoring Setup
 
-### 10.1 create a queries.yaml  in current working directory file with the following content
-```
-pg_replication:
-  query: "SELECT client_addr, state, sent_lsn, write_lsn, flush_lsn, replay_lsn FROM pg_stat_replication;"
-  metrics:
-    - client_addr:
-        usage: "LABEL"
-        description: "Replica Address"
-    - state:
-        usage: "LABEL"
-        description: "Replication State"
-    - sent_lsn:
-        usage: "GAUGE"
-        description: "Sent Log Sequence Number"
-    - write_lsn:
-        usage: "GAUGE"
-        description: "Write Log Sequence Number"
-    - flush_lsn:
-        usage: "GAUGE"
-        description: "Flush Log Sequence Number"
-    - replay_lsn:
-        usage: "GAUGE"
-        description: "Replay Log Sequence Number"
 
-pg_replication_lag:
-  query: "SELECT EXTRACT(EPOCH FROM now() - pg_last_xact_replay_timestamp()) AS lag_seconds;"
-  metrics:
-    - lag_seconds:
-        usage: "GAUGE"
-        description: "Replication Lag in Seconds"
 
-pg_up_status:
-  query: "SELECT 1 AS up;"
-  metrics:
-    - up:
-        usage: "GAUGE"
-        description: "1 if database is UP, 0 if DOWN"
-
-pg_network_bandwidth:
-  query: "SELECT sum(pg_stat_get_wal_bytes_written()) AS bytes_written FROM pg_stat_bgwriter;"
-  metrics:
-    - bytes_written:
-        usage: "GAUGE"
-        description: "Total WAL bytes written"
-
-```
-
-### 10.2 Deploy Postgres Exporter for `pg_dc`
+### 10.1 Deploy Postgres Exporter for `pg_dc`
 
 ```bash
 
-podman run -d --name pg_dc_exporter   --network=pg_replication_net --ip=192.168.100.46   -e DATA_SOURCE_NAME="postgresql://postgres:password123@192.168.100.44:5432/postgres?sslmode=disable"  -v ./queries.yml:/etc/postgres_exporter/queries.yml -e PG_EXPORTER_EXTEND_QUERY_PATH=/etc/postgres_exporter/queries.yml  -p 9187:9187 quay.io/prometheuscommunity/postgres-exporter
+podman run -d --name pg_dc_exporter  --network=pg_replication_net --ip=192.168.100.46   -e DATA_SOURCE_NAME="postgresql://postgres:password123@192.168.100.44:5432/postgres?sslmode=disable"   -p 9187:9187 quay.io/prometheuscommunity/postgres-exporter
 ```
 
-### 10.2 Deploy Postgres Exporter for `pg_dr`
 
-```bash
-podman run -d --name pg_dr_exporter   --network=pg_replication_net --ip=192.168.100.47   -e DATA_SOURCE_NAME="postgresql://postgres:password1234@192.168.100.45:5432/postgres?sslmode=disable"  -v ./queries.yml:/etc/postgres_exporter/queries.yml -e PG_EXPORTER_EXTEND_QUERY_PATH=/etc/postgres_exporter/queries.yml  -p 9188:9187 quay.io/prometheuscommunity/postgres-exporter
-```
-
-### 10.3 Create `prometheus.yml`
+### 10.2 Create `prometheus.yml`
 
 ```yaml
 global:
@@ -323,12 +273,9 @@ scrape_configs:
   - job_name: 'pg_dc_exporter'
     static_configs:
       - targets: ['192.168.100.46:9187']
-  - job_name: 'pg_dr_exporter'
-    static_configs:
-      - targets: ['192.168.100.47:9187']
 ```
 
-### 10.4 Deploy Prometheus
+### 10.3 Deploy Prometheus
 
 ```bash
 podman run -d --name prometheus_dc_dr --network=pg_replication_net --ip=192.168.100.48 \
