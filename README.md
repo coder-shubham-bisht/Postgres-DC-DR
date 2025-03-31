@@ -71,7 +71,7 @@ echo 'host replication replicator 192.168.100.44/24 md5' >> /var/lib/postgresql/
 exit
 ```
 
-### 2.6 Restart the PostgreSQL 16.8 Container
+### 2.7 Restart the PostgreSQL 16.8 Container
 
 ```bash
 podman restart pg_dc
@@ -84,16 +84,10 @@ podman restart pg_dc
 ```bash
 podman exec -it pg_dr bash
 ```
-
-### 3.2 Remove Data Directory Contents
+### 3.3 Set Up pg_dr as  Standby Server
 
 ```bash
 rm -rf /var/lib/postgresql/data/*
-```
-
-### 3.3 Set Up Replication from Primary Server
-
-```bash
 export PGPASSWORD="rep@123"
 pg_basebackup -h 192.168.100.44 -U replicator -p 5432 -D /var/lib/postgresql/data -P -Xs -R
 exit
@@ -107,7 +101,10 @@ podman restart pg_dr
 
 ## 4. Testing Replication
 
-### 4.1 Create a Table in `pg_dc`
+### 4.1 Create a Table in `pg_dc` postgres database
+
+#### Prequiste 
+Access the pg_dc postgresql shell
 
 ```sql
 CREATE TABLE students (
@@ -117,11 +114,24 @@ CREATE TABLE students (
 );
 ```
 
-### 4.2 Check Table Replication in `pg_dr`
+### 4.2 Check Table Replication in `pg_dr`postgres database
+
+#### Prequiste 
+Access the pg_dr postgresql shell
 
 ```sql
 \dt
 ```
+#### Output
+```
+          List of relations
+ Schema |   Name   | Type  |  Owner   
+--------+----------+-------+----------
+ public | students | table | postgres
+(1 row)
+
+```
+
 
 ### 4.3 Insert Data in `pg_dc`
 
@@ -133,6 +143,15 @@ INSERT INTO students (name, age) VALUES ('Ayush', 25);
 
 ```sql
 SELECT * FROM students;
+```
+
+#### Output
+```
+ id | name  | age 
+----+-------+-----
+  1 | Ayush |  25
+(1 row)
+
 ```
 
 ### 4.5 Check Read-Only Mode in `pg_dr`
@@ -147,10 +166,26 @@ SHOW transaction_read_only;
 SELECT pg_promote();
 ```
 
+#### Output
+
+```
+ transaction_read_only 
+-----------------------
+ on
+(1 row)
+```
+
 ### 5.1 Verify Recovery Mode is Off
 
 ```sql
 SELECT pg_is_in_recovery();
+```
+### Output
+```
+ pg_is_in_recovery 
+-------------------
+ f
+(1 row)
 ```
 
 ## 6. Convert `pg_dc` to Standby Server
