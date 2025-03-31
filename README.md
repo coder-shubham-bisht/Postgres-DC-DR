@@ -13,12 +13,7 @@ podman network create --subnet=192.168.100.0/24 pg_replication_net
 ### 1.2 Create a Container for PostgreSQL 16.8
 
 ```bash
-podman run -d --name pg_dc \
-  --network=pg_replication_net \
-  --ip=192.168.100.44 \
-  -e POSTGRES_PASSWORD=password123 \
-  -p 5432:5432 \
-  docker.io/library/postgres:16.8
+podman run -d --name pg_dc --network=pg_replication_net --ip=192.168.100.44 -e POSTGRES_PASSWORD=password123 -p 5432:5432 docker.io/library/postgres:16.8
 ```
 
 #### Expected Output:
@@ -29,12 +24,7 @@ podman run -d --name pg_dc \
 ### 1.3 Create a Container for PostgreSQL 16.3
 
 ```bash
-podman run -d --name pg_dr \
-  --network=pg_replication_net \
-  --ip=192.168.100.45 \
-  -e POSTGRES_PASSWORD=password1234 \
-  -p 5433:5432 \
-  docker.io/library/postgres:16.3
+podman run -d --name pg_dr --network=pg_replication_net --ip=192.168.100.45 -e POSTGRES_PASSWORD=password1234 -p 5433:5432 docker.io/library/postgres:16.3
 ```
 
 #### Expected Output:
