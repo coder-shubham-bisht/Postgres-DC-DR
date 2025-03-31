@@ -58,11 +58,17 @@ CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD 'rep@123';
 \du
 ```
 
-### 2.5 Configure Authentication in `pg_hba.conf`
+### 2.5 Exit the PostgreSQL Shell
+```
+exit
+```
+
+### 2.6 Configure Authentication in `pg_hba.conf`
 
 ```bash
 echo 'host replication replicator 192.168.100.45/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
 echo 'host replication replicator 192.168.100.44/24 md5' >> /var/lib/postgresql/data/pg_hba.conf
+exit
 ```
 
 ### 2.6 Restart the PostgreSQL 16.8 Container
