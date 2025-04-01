@@ -290,3 +290,7 @@ podman run -d --name grafana_pg_dc_dr --network=pg_replication_net --ip=192.168.
   -p 3000:3000 docker.io/grafana/grafana
 ```
 
+
+### Monitoring stats
+pg_stat_replication_pg_wal_lsn_diff
+
